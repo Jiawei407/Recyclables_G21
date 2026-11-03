@@ -1,0 +1,4 @@
+/tools/phpunit-9.phar
+/tests/.runtime/
+/.phpunit.result.cache
+/storage/uploads/*

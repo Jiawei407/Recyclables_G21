@@ -31,6 +31,7 @@ try {
     http_response_code(503);
     exit('Database unavailable. Start MySQL in XAMPP, run the supplied setup SQL in phpMyAdmin, and check includes/config.php.');
 }
+
 if (isset($page_role)) require_role([$page_role]);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!is_string($_POST['csrf'] ?? null) || !hash_equals($_SESSION['csrf'], $_POST['csrf'])) {
@@ -55,4 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else { $error = $exception->getMessage(); }
         http_response_code(422);
     }
+}
+
+// Style the authenticated logical screen after its grouped route has handled auth and POST.
+// The renderer preserves the real ?view= links, live records and native form payloads.
+if (isset($page_role, $page) && is_array($user)) {
+    require_once __DIR__ . '/role-presentation.php';
+    ob_start(static function (string $html) use ($page, $user): string {
+        return render_role_layout($html, $page, $user);
+    });
 }

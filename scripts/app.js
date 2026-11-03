@@ -51,7 +51,7 @@ document.querySelectorAll('.toolbar').forEach(function (toolbar) {
     choice = statusChoices[choice] || choice;
     if (/^(all|choose|any)/.test(choice)) choice = '';
     document.querySelectorAll('[data-record]').forEach(function (record) {
-      var text = record.textContent.toLowerCase();
+      var text = (record.dataset.filterText !== undefined ? record.dataset.filterText : record.textContent).toLowerCase();
       var searchText = text + ' ' + (record.dataset.search || '').toLowerCase();
       var status=record.dataset.status || '';
       var matchesChoice=!choice || text.includes(choice) || status===choice;
@@ -75,10 +75,19 @@ document.querySelectorAll('form[data-confirm]').forEach(function (form) {
 });
 var dialog = document.querySelector('[role="dialog"]');
 if (dialog) {
-  var focusables = dialog.querySelectorAll('a[href],button,input,select,textarea');
+  function dialogControls() {
+    return Array.from(dialog.querySelectorAll('a[href],button,input,select,textarea')).filter(function (control) {
+      return control.type !== 'hidden' && !control.disabled && !control.hidden && control.tabIndex !== -1 &&
+        !(typeof control.matches === 'function' && control.matches(':disabled')) &&
+        !(typeof control.closest === 'function' && control.closest('[hidden],[inert]')) &&
+        !(typeof control.getClientRects === 'function' && !control.getClientRects().length);
+    });
+  }
+  var focusables = dialogControls();
   if (focusables.length) focusables[0].focus();
   dialog.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') { var close=dialog.querySelector('.close-button'); if (close) close.click(); }
+    focusables = dialogControls();
     if (event.key !== 'Tab' || !focusables.length) return;
     var first=focusables[0], last=focusables[focusables.length-1];
     if (event.shiftKey && document.activeElement === first) { last.focus(); event.preventDefault(); }

@@ -1,5 +1,13 @@
 # Recyclables
 
+## Approved UI port
+
+The `codex/ui-port` branch applies the approved forest, paper and lime role interface to this repository's grouped pages. All four PHP files per role, `?view=` links, backend actions, account rules, badge tiers, charts and database configuration remain intact. The public homepage, login and registration pages keep this repository's original design. Use the credentials in this repository's `TEST-ACCOUNTS.md`; the earlier repository's demo-password conventions do not apply here.
+
+The presentation hook in `includes/bootstrap.php` runs after authentication and POST processing. `includes/role-presentation.php` transforms only role output, loading scoped styles from `assets/role-ui/` and progressive native-field controls from `scripts/role-controls.js` and `scripts/role-selections.js`. PHP DOM/XML is needed for the new presentation; without it, the original functional role UI remains usable. No npm build step or database re-import is required for an existing installation.
+
+See [UI-PORT-VERIFICATION.md](UI-PORT-VERIFICATION.md) for validation and [tests/README.md](tests/README.md) for repeatable tests.
+
 ## Replace your project files
 
 1. If C:\xampp\htdocs\Coding already exists, rename that folder to Coding-backup first. Keep it until the new version works.
