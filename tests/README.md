@@ -3,7 +3,7 @@
 From the repository root, obtain PHPUnit 9.6 at `tools/phpunit-9.phar` (ignored), then run:
 
 ```powershell
-& C:\xampp\php\php.exe tools/phpunit-9.phar -c phpunit.xml
+& C:\xampp\php\php.exe -d extension=gd tools/phpunit-9.phar -c phpunit.xml
 node --test tests/js/*.test.cjs
 ```
 
@@ -11,7 +11,7 @@ The PHP tests verify the native form/CSRF/media/data contracts and grouped route
 
 ## Browser integration
 
-Use a NEW, empty disposable database namespace and an isolated PHP server. Never use the running website's database. `prepare.php` refuses existing schemas and rewrites every source SQL database directive to the explicitly named test database before importing the teammate's full sample setup. It adds a marker and disposable workflow fixtures, and writes a route catalog under ignored `.runtime/`.
+Use a new, empty disposable database namespace and an isolated PHP server. `prepare.php` refuses existing schemas and imports the application schema and `tests/fixtures/sample-data.sql` into the selected test database. It adds a marker and workflow fixtures, and writes a route catalog under ignored `.runtime/`.
 
 ```powershell
 $env:RECYCLABLES_TEST_DB_NAME = 'recyclables_test_g21_unique_suffix'
@@ -30,7 +30,7 @@ foreach ($key in 'HOST','PORT','NAME','USER','PASSWORD') {
 }
 $env:RECYCLABLES_TEST_SERVER_TOKEN = [guid]::NewGuid().ToString('N')
 $sessionPath = (Resolve-Path tests/.runtime).Path
-& C:\xampp\php\php.exe -d "session.save_path=$sessionPath" -S 127.0.0.1:8133 -t . tests/Support/server-router.php
+& C:\xampp\php\php.exe -d extension=gd -d "session.save_path=$sessionPath" -S 127.0.0.1:8133 -t . tests/Support/server-router.php
 ```
 
 Back in the runner shell, install/resolve Playwright for developer tests or provide its module path. Use its installed Chromium or set `RECYCLABLES_CHROME` to a Chrome executable. Optionally supply a local axe-core `axe.min.js`:
@@ -42,4 +42,4 @@ $env:RECYCLABLES_TEST_SERVER_TOKEN = '<same token as the test server>'
 node tests/browser/roles.cjs
 ```
 
-The runner verifies the server token, schema and marker before submitting anything. It uses the supplied test credentials and fixture catalog, visits all 82 logical screens at two widths, and exercises seven real workflows. It creates an evidence photo and an announcement only inside the disposable schema. Use a fresh schema for a clean repeat. Stop the owned test PHP server afterward; retire only that marked disposable schema and its own uploaded fixture file. Do not delete files belonging to another database or your normal website.
+The runner verifies the server token, schema and marker before submitting anything. It uses the supplied test credentials and fixture catalog, visits all 82 logical screens at two widths, and exercises the role workflows. Use a fresh schema for a clean repeat. Stop the test server afterward and retire its marked schema and uploaded fixture files.

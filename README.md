@@ -2,7 +2,7 @@
 
 ## Approved UI port
 
-The `codex/ui-port` branch applies the approved forest, paper and lime role interface to this repository's grouped pages. All four PHP files per role, `?view=` links, backend actions, account rules, badge tiers, charts and database configuration remain intact. The public homepage, login and registration pages keep this repository's original design. Use the credentials in this repository's `TEST-ACCOUNTS.md`; the earlier repository's demo-password conventions do not apply here.
+The grouped role pages use the approved forest, paper and lime interface. Each role keeps its four PHP files and existing `?view=` navigation.
 
 The presentation hook in `includes/bootstrap.php` runs after authentication and POST processing. `includes/role-presentation.php` transforms only role output, loading scoped styles from `assets/role-ui/` and progressive native-field controls from `scripts/role-controls.js` and `scripts/role-selections.js`. PHP DOM/XML is needed for the new presentation; without it, the original functional role UI remains usable. No npm build step or database re-import is required for an existing installation.
 
@@ -12,11 +12,12 @@ See [UI-PORT-VERIFICATION.md](UI-PORT-VERIFICATION.md) for validation and [tests
 
 1. If C:\xampp\htdocs\Coding already exists, rename that folder to Coding-backup first. Keep it until the new version works.
 2. Extract this ZIP. Place its new Coding folder at C:\xampp\htdocs\Coding. Start with this clean folder so old role PHP files do not remain alongside the new four-file structure.
-3. If you have actual uploaded files in Coding-backup/storage/uploads, copy those files into the new Coding/storage/uploads. This package includes an empty uploads folder; imported sample records have no photos.
-4. Start Apache and MySQL in XAMPP.
-5. Open http://localhost/Coding/ and log in with an account in TEST-ACCOUNTS.md.
+3. Copy your uploaded files from Coding-backup/storage/uploads to the new Coding/storage/uploads.
+4. Enable `extension=gd` in XAMPP's `php.ini` for badge uploads. For the full 5 MB upload limit, set `upload_max_filesize` to at least `5M` and `post_max_size` to at least `6M`.
+5. Start Apache and MySQL in XAMPP. In phpMyAdmin, select your existing Recyclables database and import `database/upgrade-g21-bug-fixes.sql`. It adds the fields used by permissions, point reversals, achievement rules and audit history.
+6. Open http://localhost/Coding/ and log in with your existing account.
 
-The connection in includes/config.php uses database recyclables, host 127.0.0.1, user root and an empty password. If you renamed your imported database to recyclables, no SQL import is needed. This site does not import, delete or reset your database automatically.
+The default connection in includes/config.php uses database recyclables, host 127.0.0.1, user root and an empty password. The upgrade preserves existing records. For a fresh installation, import `database/setup.sql`, register your first account and set that account's role to `admin` in the `users` table. Use the admin account to create the other staff accounts.
 
 Do not merge the old role PHP files back into the new project. Use the new links from the homepage. Bookmark URLs have changed because the old pages are grouped into four files per role.
 
@@ -44,20 +45,18 @@ Shared code is outside these role folders. Public login, registration, homepage 
 
 ## Accounts and validation
 
-The imported 30-account test set is supported. Passwords are readable in MySQL as explicitly requested for this lecture demonstration. Student passwords use the TP number followed by 123@. The login, registration, administrator account editor and password-change handler all use the same format.
+The application keeps the existing coursework account rules. The disposable fixtures use the credentials in `TEST-ACCOUNTS.md`.
 
 Student email must end with @mail.apu.edu.my. Student ID is uppercase TP followed by six digits. New passwords need 8-72 characters and a special character. Each faculty representative is linked to their own faculty. Representatives cannot edit another faculty's announcements or reports.
 
 ## Reviews and rewards
 
-All three reviewer checks are required for approval. Rejection/revision requires a selected reason; Other requires an explanation. Final decisions are read-only. A participant submits new evidence for another review. Successful form actions return to the parent page and show a native popup.
+All three reviewer checks are required for approval. Rejection and revision require a selected reason. Other requires an explanation. Coordinator decisions are read-only after review. An administrator can open an approved submission from a student's points history, reject it with a reason and reverse its award once. The original ledger entry and its reversal remain visible in the points history.
 
 Only approved submissions count toward badge rules. Badge families upgrade through Bronze, Silver and Gold, showing only the highest earned level. Each earned card shows the next target until Gold. Administrators can edit the family, level and requirements separately. Existing independent custom badges still work. A campaign bonus is awarded once per user after all its linked challenges are approved. Points and campaign awards are stored in MySQL.
 
-## Existing sample data
+Badge uploads accept JPG and PNG images from 128 × 128 through 2048 × 2048 pixels, up to 5 MB. The fixed tracked-item choices include plastic bottles, reusable cups, and aluminum cans. These item rules sum approved quantities. Activity and challenge rules count approved submissions.
 
-The original sample set has been extended with 14 fictional Malaysian students and 111 approved historical submissions across five earlier months. The live database has 45 accounts and 211 submissions, including your manually created account. A fresh setup has 44 accounts because it excludes manually created accounts. The added activity contributes points and updates both leaderboards and badge progress. All sample activity remains labelled as synthetic.
+## Coursework data
 
-Imported submissions are synthetic records without image files. Their detail pages show a clear placeholder. Upload a new submission to test actual photo previews and downloads. Seeded reports have no attachment; submit a new report with a file to test downloads.
-
-Database/setup.sql is an optional full setup for a fresh database named recyclables. You already imported your test data, so keep that database and do not import again for this file replacement.
+The site reads the records in the configured database. The former setup fixtures are now loaded by `tests/prepare.php` into a separate disposable database. Existing installations that previously imported the fixtures still retain those rows. See [tests/README.md](tests/README.md) for the fixture and test-server commands.

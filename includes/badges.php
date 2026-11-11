@@ -5,7 +5,7 @@ function badge_rank($tier) {
 function highest_badges($badges) {
     $families=[];
     foreach($badges as $badge) {
-        $key=$badge['family_key'] ?: 'single-'.$badge['id'];
+        $key=$badge['family_key'] === '' ? 'badge:'.$badge['id'] : 'family:'.$badge['family_key'];
         $families[$key][]=$badge;
     }
     $cards=[];
@@ -29,5 +29,5 @@ function badge_collection($user_id,$faculty_name=null) {
     return highest_badges($badges);
 }
 function tier_label($badge) {
-    return empty($badge['family_key']) ? '' : ucfirst($badge['tier']);
+    return $badge['family_key'] === '' ? '' : ucfirst($badge['tier']);
 }

@@ -1253,6 +1253,15 @@ table,
   background: var(--sage);
 }
 
+#badge-editor [hidden] {
+  display: none;
+}
+
+#badge-editor .upload-thumbnail {
+  width: 96px;
+  height: 96px;
+}
+
 :where(.account-page, .workspace-page, .error-page) .attachment-paper {
   margin-top: 16px;
   padding: 24px;
@@ -1276,6 +1285,35 @@ table,
   color: var(--forest-700);
   font-size: 13px;
   cursor: pointer;
+}
+
+.workspace-page .disclosure > .disclosure-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 12px;
+  list-style: none;
+}
+
+.workspace-page .disclosure > .disclosure-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.workspace-page .disclosure-toggle > .icon {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.workspace-page .disclosure[open] > .disclosure-toggle > .icon {
+  transform: rotate(180deg);
+}
+
+.workspace-page .disclosure-toggle + :is(dl, .table-wrap, a) {
+  display: block;
+  margin-top: 16px;
 }
 
 :where(.account-page, .workspace-page, .error-page) .bar-chart {

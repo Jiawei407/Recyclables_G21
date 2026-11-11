@@ -4,6 +4,7 @@ require_once __DIR__ . '/routes.php';
 require_once __DIR__ . '/rules.php';
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/permissions.php';
 date_default_timezone_set('Asia/Kuala_Lumpur');
 session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax', 'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
 session_start();

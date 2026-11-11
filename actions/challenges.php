@@ -1,44 +1,57 @@
 <?php
 if ($action === 'save-challenge') {
     require_role(['coordinator','admin']);
+    require_permission('manage-challenges');
     $id = (int)post('id');
     $editing = $id > 0;
     $old = $id ? one('SELECT * FROM challenges WHERE id=?', [$id]) : null;
     need(!$id || $old, 'Select an existing challenge.');
+    if ($user['role'] === 'admin') {
+        $selected = filter_var($_GET['id'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
+        need(($page ?? '') === 'admin/challenge-balancing.php' && $old && $id === $selected, 'Select an existing challenge.');
+    }
     $title = post('challenge-title'); $description = post('challenge-description');
     need($title !== '' && strlen($title) <= 180 && $description !== '', 'Enter a title and description.');
     $category = post('challenge-category', $old['category'] ?? 'Recycling');
-    need(in_array($category,['Cleanup','Recycling','Reuse','Everyday habits'],true), 'Choose a category.');
+    need($category === ($old['category'] ?? null) || in_array($category,['Cleanup','Recycling','Reuse','Everyday habits'],true), 'Choose a category.');
     $item = post('tracked-item',$old['tracked_item'] ?? 'Approved activity');
-    need(in_array($item,['Plastic bottles','Reusable cup','Campus cleanup','Approved activity'],true), 'Choose the tracked item.');
+    need(isset(achievement_measures()[$item]), 'Choose the tracked item.');
     $points = number_value('challenge-points',0,1000);
     $start = date_value('challenge-start',$old['start_date'] ?? date('Y-m-d'));
     $end = date_value(isset($_POST['challenge-end-date']) ? 'challenge-end-date' : 'challenge-end');
     need($end >= $start, 'End date must be on or after the start date.');
     $limit = number_value('challenge-limit',1,1000,$old['submission_limit'] ?? '1');
     $eligibility = post('challenge-eligibility',$old['eligibility'] ?? 'Students and staff');
-    need(in_array($eligibility,['Students and staff','Students','Staff'],true), 'Choose an eligibility rule.');
+    need($eligibility === ($old['eligibility'] ?? null) || in_array($eligibility,['Students and staff','Students','Staff'],true), 'Choose an eligibility rule.');
     $completion = post('challenge-completion',post('completion-requirement',$old['completion_requirement'] ?? ''));
     need(strlen($completion) <= 255, 'Completion requirement is too long.');
     $status = strtolower(post('challenge-status',$old['status'] ?? 'open'));
     need(in_array($status,['open','closed','draft'],true), 'Choose Open, Closed or Draft.');
-    $image = save_upload('image') ?: ($old['image'] ?? '');
+    $upload = save_upload('image');
     mysqli_begin_transaction($conn);
     if ($id) {
+        $current = one('SELECT tracked_item, image FROM challenges WHERE id=? FOR UPDATE', [$id]);
+        need($current, 'Select an existing challenge.');
+        if ($item !== $current['tracked_item']) {
+            need(!one('SELECT id FROM submissions WHERE challenge_id=? LIMIT 1', [$id]), 'The tracked item is fixed after evidence is submitted. Create a new challenge to track a different item.');
+        }
+        $image = $upload ?: $current['image'];
         query('UPDATE challenges SET title=?,category=?,description=?,tracked_item=?,points=?,start_date=?,end_date=?,submission_limit=?,eligibility=?,completion_requirement=?,status=?,image=? WHERE id=?', [$title,$category,$description,$item,$points,$start,$end,$limit,$eligibility,$completion,$status,$image,$id]);
     } else {
-        query('INSERT INTO challenges (title,category,description,tracked_item,points,start_date,end_date,submission_limit,eligibility,completion_requirement,status,image,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', [$title,$category,$description,$item,$points,$start,$end,$limit,$eligibility,$completion,$status,$image,$user['id']]);
+        query('INSERT INTO challenges (title,category,description,tracked_item,points,start_date,end_date,submission_limit,eligibility,completion_requirement,status,image,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', [$title,$category,$description,$item,$points,$start,$end,$limit,$eligibility,$completion,$status,$upload,$user['id']]);
         $id = mysqli_insert_id($conn);
     }
     audit('challenge-saved','Challenge #' . $id . ': ' . $title);
     mysqli_commit($conn);
-    action_success('Challenge', $editing ? 'updated' : 'created', $user['role'] === 'admin' ? 'admin/challenge-balancing.php?id=' . $id : 'coordinator/challenges-all-challenges.php', $title);
+    action_success('Challenge', $editing ? 'updated' : 'created', $user['role'] === 'admin' ? 'admin/challenge-balancing.php?id=' . $id . '#edit-challenge' : 'coordinator/challenges-all-challenges.php', $title);
 }
 if ($action === 'delete-challenge') {
     require_role(['admin','coordinator']);
+    require_permission('manage-challenges');
     $id = (int)post('id');
     need(one('SELECT id FROM challenges WHERE id=?',[$id]), 'Select a challenge.');
     need(!one('SELECT id FROM submissions WHERE challenge_id=? LIMIT 1',[$id]), 'This challenge has evidence. Close it instead to preserve its history.');
+    need(!one('SELECT id FROM achievement_rules WHERE challenge_id=? LIMIT 1',[$id]), 'This challenge is used by an achievement. Remove it from the requirement first.');
     mysqli_begin_transaction($conn);
     query('DELETE FROM challenges WHERE id=?',[$id]);
     audit('challenge-deleted','Challenge #' . $id);
@@ -47,7 +60,7 @@ if ($action === 'delete-challenge') {
 }
 if ($action === 'join') {
     require_role('user');
-    need((bool)$user['can_join'], 'Joining is disabled for your account.');
+    require_permission('join-challenges');
     $id = (int)post('id');
     $challenge = one("SELECT * FROM challenges WHERE id=? AND status='open' AND start_date<=CURDATE() AND end_date>=CURDATE()",[$id]);
     need($challenge, 'This challenge is not currently open.');
@@ -57,13 +70,13 @@ if ($action === 'join') {
 }
 if ($action === 'submit-evidence') {
     require_role('user');
-    need((bool)$user['can_submit'], 'Evidence submission is disabled for your account.');
+    require_permission('submit-evidence');
     $id = (int)post('challenge-id'); $description = post('evidence-description');
     need($description !== '' && strlen($description) <= 5000, 'Describe what you did in up to 5000 characters.');
     mysqli_begin_transaction($conn);
     
     need(one('SELECT * FROM user_challenges WHERE user_id=? AND challenge_id=? FOR UPDATE',[$user['id'],$id]), 'Join the challenge before submitting evidence.');
-    $challenge = one("SELECT * FROM challenges WHERE id=? AND status='open' AND start_date<=CURDATE() AND end_date>=CURDATE()",[$id]);
+    $challenge = one("SELECT * FROM challenges WHERE id=? AND status='open' AND start_date<=CURDATE() AND end_date>=CURDATE() FOR UPDATE",[$id]);
     need($challenge, 'This challenge is no longer open.');
     $count = one("SELECT COUNT(*) AS total FROM submissions WHERE user_id=? AND challenge_id=? AND status IN ('pending','approved')",[$user['id'],$id]);
     need($count['total'] < $challenge['submission_limit'], 'You have reached the pending/approved submission limit.');
@@ -77,6 +90,7 @@ if ($action === 'submit-evidence') {
 }
 if ($action === 'review') {
     require_role(['coordinator','admin']);
+    require_permission('review-submissions');
     $id = (int)post('id'); $decision = post('decision');
     $notes = review_note($decision,post('review-reason'),post('review-notes'));
     mysqli_begin_transaction($conn);
@@ -114,6 +128,7 @@ if ($action === 'review') {
 }
 if ($action === 'save-campaign') {
     require_role('coordinator');
+    require_permission('manage-campaigns');
     $id = (int)post('id'); $name = post('campaign-name'); $description = post('campaign-description');
     $editing = $id > 0;
     need($name !== '' && strlen($name)<=180 && $description !== '', 'Enter a campaign name and description.');
@@ -142,6 +157,7 @@ if ($action === 'save-campaign') {
 }
 if ($action === 'save-announcement') {
     require_role(['coordinator','faculty']);
+    require_permission('publish-announcements');
     $id = (int)post('id'); $title = post('announcement-title'); $text = post('announcement-message');
     $editing = $id > 0;
     need($title !== '' && strlen($title)<=180 && $text !== '', 'Enter a title and message.');

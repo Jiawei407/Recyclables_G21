@@ -42,7 +42,7 @@
       "replacements": {}
     },
     "admin/audit-log.html": {
-      "description": "Find recorded administrative actions by date, actor and action type.",
+      "description": "Find recorded actions by date, user, role and action type.",
       "replacements": {}
     },
     "admin/challenge-balancing-delete-challenge.html": {
@@ -58,14 +58,14 @@
       "replacements": {}
     },
     "admin/home.html": {
-      "description": "View user activity, point corrections and reported environmental totals.",
+      "description": "View participation, approved activity and points records.",
       "replacements": {
         "People making progress": "Participant activity",
         "Review now": "Point corrections"
       }
     },
     "admin/impact-analytics.html": {
-      "description": "View reported environmental totals, action counts and the annual campus target.",
+      "description": "Track participation, recyclable items and approved campus activities.",
       "replacements": {}
     },
     "admin/leaderboard-point-corrections.html": {
@@ -81,7 +81,6 @@
       "replacements": {}
     },
     "admin/reports-faculty-report.html": {
-      "description": "View the selected faculty report, activity results, notes and attachments.",
       "replacements": {}
     },
     "admin/reports-faculty-reports.html": {
@@ -247,15 +246,12 @@
       "replacements": {}
     },
     "faculty/participation-campus-cleanup.html": {
-      "description": "View participation details for the selected challenge.",
       "replacements": {}
     },
     "faculty/participation-challenge-participation.html": {
-      "description": "View joined, active and completed participation for faculty challenges.",
       "replacements": {}
     },
     "faculty/participation-completion-rates.html": {
-      "description": "View faculty challenge completion counts and rates by month.",
       "replacements": {}
     },
     "faculty/promote-challenges-available-challenges.html": {

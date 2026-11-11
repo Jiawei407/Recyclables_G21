@@ -8,7 +8,7 @@ foreach ($table_records as $index => $row) {
     $search_text = $kind === 'users' ? ($row['full_name'] . ' ' . $row['email'] . ' ' . $row['university_id']) : '';
     echo '<tr data-record data-search="' . e($search_text) . '" data-date="' . e($row['created_at'] ?? $row['publish_date'] ?? $row['period'] ?? '') . '" data-status="' . e($row['status'] ?? '') . '">';
     foreach ($columns as $column) {
-        $text='—'; $link='';
+        $text='—'; $link=''; $fragment='';
         switch (strtolower($column)) {
             case 'rank': $text=$index+1; break;
             case 'participant': case 'name': $text=$row['full_name'] ?? $row['name'] ?? '—'; break;
@@ -41,10 +41,19 @@ foreach ($table_records as $index => $row) {
             case 'condition': $text=$row['condition_name']; break;
             case 'action': case 'details':
                 $text='View';
-                if ($kind === 'users') $link='admin/users-edit-user.php';
+                if ($kind === 'users') {
+                    $text='—';
+                    if ($row['role'] !== 'admin' || can_manage_admin_accounts($user)) {
+                        $link='admin/users-edit-user.php';
+                        $text='Edit';
+                    }
+                }
                 if ($kind === 'rankings') $link=$role === 'admin' ? 'admin/leaderboard-review-user-points.php' : '';
                 if ($kind === 'submissions') $link=$role === 'user' ? 'user/submit-evidence-submission-details.php' : 'coordinator/submissions-review-submission.php';
-                if ($kind === 'challenges') $link=($role === 'admin' ? 'admin/challenge-balancing.php' : ($role === 'faculty' ? 'faculty/participation-campus-cleanup.php' : ($role === 'coordinator' ? 'coordinator/challenges-edit.php' : 'user/challenges-view-challenge.php')));
+                if ($kind === 'challenges') {
+                    $link=($role === 'admin' ? 'admin/challenge-balancing.php' : ($role === 'faculty' ? 'faculty/participation-campus-cleanup.php' : ($role === 'coordinator' ? 'coordinator/challenges-edit.php' : 'user/challenges-view-challenge.php')));
+                    if ($role === 'admin') $fragment='#edit-challenge';
+                }
                 if ($kind === 'campaigns') $link='coordinator/campaigns-edit.php';
                 if ($kind === 'announcements') $link=$role . '/announcements-edit.php';
                 if ($kind === 'activities') $link='faculty/faculty-activities-faculty-cleanup.php';
@@ -53,7 +62,7 @@ foreach ($table_records as $index => $row) {
                 break;
         }
         echo '<td>';
-        if ($link) echo '<a class="text-link" href="' . e(route_url($link.'?id='.$row['id'])) . '">' . e($text) . '</a>';
+        if ($link) echo '<a class="text-link" href="' . e(route_url($link.'?id='.$row['id'].$fragment)) . '">' . e($text) . '</a>';
         else echo e($text);
         echo '</td>';
     }

@@ -135,4 +135,18 @@ final class RolePresentationTest extends TestCase
         self::assertSame(0, $xpath->query('//main//*[contains(concat(" ",@class," ")," status-banner ")]')->length);
         self::assertSame(1, $xpath->query('//a[@href="../admin/leaderboard-point-corrections.php"]')->length);
     }
+
+    public function testAccountAppearsOnceBesideWorkspaceNavigation(): void
+    {
+        $html = $this->fixture('<p class="metric-note">Based on saved records.</p><p class="metric-note">Last six months</p>');
+        $xpath = $this->xpath(render_role_layout($html, 'user/submit-evidence-new-submission.php', $this->actor()));
+        $account = '//header//div[@class="clay-header-navigation"]/details[@class="workspace-account"]';
+        self::assertSame(1, $xpath->query($account)->length);
+        self::assertSame('Zoë & 李', $xpath->query($account . '/summary/span')->item(0)->textContent);
+        self::assertSame(1, $xpath->query($account . '//input[@name="csrf" and @value="logout-csrf"]')->length);
+        self::assertSame(1, $xpath->query('//header//form[.//input[@name="action" and @value="logout"]]')->length);
+        self::assertSame(0, $xpath->query('//main//p[normalize-space(.)="Registered User"]')->length);
+        self::assertSame(0, $xpath->query('//main//p[normalize-space(.)="Based on saved records."]')->length);
+        self::assertSame(1, $xpath->query('//main//p[normalize-space(.)="Last six months"]')->length);
+    }
 }

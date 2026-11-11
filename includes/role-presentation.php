@@ -59,9 +59,19 @@ function render_role_layout(string $html, string $page, array $user): string
             $link->setAttribute('href', '../assets/role-ui/' . $style . '.css'); $head->appendChild($link);
         }
         $intro = $xp->query('.//*[' . $has('page-header') . ']', $main)->item(0);
+        $labels = ['user' => 'Registered User', 'faculty' => 'Faculty Representative',
+            'coordinator' => 'Sustainability Coordinator', 'admin' => 'Administrator'];
         if ($intro) {
             $classes($intro, 'workspace-intro ' . ($bold ? 'poster-intro' : 'intro-plain'));
             foreach ($nodes('.//h1/*[' . $has('heading-icon') . ']', $intro) as $icon) $icon->parentNode->removeChild($icon);
+            foreach ($nodes('.//*[' . $has('context-line') . ']', $intro) as $context) {
+                if (strcasecmp(trim($context->textContent), $labels[$role]) === 0) {
+                    $context->parentNode->removeChild($context);
+                }
+            }
+        }
+        foreach ($nodes('.//*[' . $has('metric-note') . ']', $main) as $note) {
+            if (rtrim(trim($note->textContent), '.') === 'Based on saved records') $note->parentNode->removeChild($note);
         }
 
         // Reuse the real navigation and logout form, including its CSRF token and POST action.
@@ -71,28 +81,42 @@ function render_role_layout(string $html, string $page, array $user): string
             $top = $create('div', 'clay-header-top');
             $brand = $xp->query('.//a[' . $has('brand') . ']', $sidebar)->item(0);
             if ($brand) $top->appendChild($brand->cloneNode(true));
-            $account = $create('div', 'clay-role');
-            $labels = ['user' => 'Registered User', 'faculty' => 'Faculty Representative',
-                'coordinator' => 'Sustainability Coordinator', 'admin' => 'Administrator'];
-            $account->appendChild($create('strong', 'role-label', $labels[$role]));
-            $account->appendChild($create('div', 'role-account-name', (string)($user['full_name'] ?? '')));
-            $logout = $xp->query('.//form[.//input[@name="action" and @value="logout"]]', $sidebar)->item(0);
-            if ($logout) $account->appendChild($logout->cloneNode(true));
-            $top->appendChild($account); $header->appendChild($top);
+            $header->appendChild($top);
+            $navigation = $create('div', 'clay-header-navigation');
+            $chevron = static function () use ($create): DOMElement {
+                $icon = $create('svg', 'icon');
+                $icon->setAttribute('viewBox', '0 0 24 24');
+                $icon->setAttribute('aria-hidden', 'true');
+                $path = $create('path');
+                $path->setAttribute('d', 'm6 9 6 6 6-6');
+                $icon->appendChild($path);
+                return $icon;
+            };
             $nav = $xp->query('.//nav[' . $has('sidebar-nav') . ']', $sidebar)->item(0);
             if ($nav) {
-                $desktop = $nav->cloneNode(true); $desktop->setAttribute('class', 'clay-nav'); $header->appendChild($desktop);
+                $desktop = $nav->cloneNode(true);
+                $desktop->setAttribute('class', 'clay-nav');
+                $navigation->appendChild($desktop);
                 $menu = $create('details', 'mobile-menu');
                 $summary = $create('summary', '', 'Workspace menu');
-                $icon = $create('svg', 'icon'); $icon->setAttribute('viewBox', '0 0 24 24'); $icon->setAttribute('aria-hidden', 'true');
-                $path = $create('path'); $path->setAttribute('d', 'm6 9 6 6 6-6'); $icon->appendChild($path); $summary->appendChild($icon);
+                $summary->appendChild($chevron());
                 $menu->appendChild($summary);
                 $mobile = $nav->cloneNode(true); $mobile->setAttribute('class', 'clay-nav'); $mobile->setAttribute('aria-label', 'Mobile workspace navigation');
                 $menu->appendChild($mobile);
-                $menu->appendChild($create('p', 'mobile-account', $labels[$role] . ' · ' . (string)($user['full_name'] ?? '')));
-                if ($logout) $menu->appendChild($logout->cloneNode(true));
-                $header->appendChild($menu);
+                $navigation->appendChild($menu);
             }
+            $account = $create('details', 'workspace-account');
+            $accountSummary = $create('summary');
+            $accountSummary->appendChild($create('span', '', (string)($user['full_name'] ?? 'Account')));
+            $accountSummary->appendChild($chevron());
+            $account->appendChild($accountSummary);
+            $accountMenu = $create('div', 'workspace-account-menu');
+            $accountMenu->appendChild($create('p', '', $labels[$role]));
+            $logout = $xp->query('.//form[.//input[@name="action" and @value="logout"]]', $sidebar)->item(0);
+            if ($logout) $accountMenu->appendChild($logout->cloneNode(true));
+            $account->appendChild($accountMenu);
+            $navigation->appendChild($account);
+            $header->appendChild($navigation);
             $sidebar->parentNode->replaceChild($header, $sidebar);
             if ($dialog) $header->setAttribute('inert', '');
         }

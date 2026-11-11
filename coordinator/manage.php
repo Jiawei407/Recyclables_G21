@@ -554,7 +554,15 @@ page_start('Challenges','Challenges',false);
               <input id="challenge-points" name="challenge-points" type="number" min="0" max="1000" placeholder="Green Points" form="backend-form" value="<?php echo value('challenge-points','points','0'); ?>">
               <p class="field-hint">Awarded after a coordinator approves the evidence.</p>
             </div>
-          <div class="field"><label for="tracked-item">Tracked item for achievements</label><select id="tracked-item" name="tracked-item" form="backend-form"><option value="Approved activity" <?php echo selected('tracked-item','tracked_item','Approved activity','Approved activity') ? 'selected' : ''; ?>>Approved activity</option><option value="Plastic bottles" <?php echo selected('tracked-item','tracked_item','Plastic bottles','Approved activity') ? 'selected' : ''; ?>>Plastic bottles</option><option value="Reusable cup" <?php echo selected('tracked-item','tracked_item','Reusable cup','Approved activity') ? 'selected' : ''; ?>>Reusable cup</option><option value="Campus cleanup" <?php echo selected('tracked-item','tracked_item','Campus cleanup','Approved activity') ? 'selected' : ''; ?>>Campus cleanup</option></select></div></div>
+          <div class="field">
+            <label for="tracked-item">Tracked item for achievements</label>
+            <select id="tracked-item" name="tracked-item" form="backend-form">
+              <?php foreach (array_keys(achievement_measures()) as $item): ?>
+                <option value="<?= e($item) ?>"<?= selected('tracked-item', 'tracked_item', $item, 'Approved activity') ?>><?= e($item) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          </div>
           <div class="upload-area">
             <svg class="icon" aria-hidden="true" viewbox="0 0 24 24">
               <path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"></path>
@@ -617,6 +625,7 @@ case 'challenges-edit-upload-photo':
 redirect('coordinator/challenges-edit.php' . (isset($_GET['id']) ? '?id=' . (int)$_GET['id'] : ''));
 break;
 case 'challenges-edit':
+$tracked_item_locked = $record && one('SELECT id FROM submissions WHERE challenge_id=? LIMIT 1', [$id]);
 page_start('Challenges','Challenges',false);
 ?>
 <main id="main-content" class="workspace-content">
@@ -663,7 +672,18 @@ page_start('Challenges','Challenges',false);
               <input id="challenge-points" name="challenge-points" type="number" min="0" max="1000" placeholder="Green Points" form="backend-form" value="<?php echo value('challenge-points','points','0'); ?>">
               <p class="field-hint">Awarded after a coordinator approves the evidence.</p>
             </div>
-          <div class="field"><label for="tracked-item">Tracked item for achievements</label><select id="tracked-item" name="tracked-item" form="backend-form"><option value="Approved activity" <?php echo selected('tracked-item','tracked_item','Approved activity','Approved activity') ? 'selected' : ''; ?>>Approved activity</option><option value="Plastic bottles" <?php echo selected('tracked-item','tracked_item','Plastic bottles','Approved activity') ? 'selected' : ''; ?>>Plastic bottles</option><option value="Reusable cup" <?php echo selected('tracked-item','tracked_item','Reusable cup','Approved activity') ? 'selected' : ''; ?>>Reusable cup</option><option value="Campus cleanup" <?php echo selected('tracked-item','tracked_item','Campus cleanup','Approved activity') ? 'selected' : ''; ?>>Campus cleanup</option></select></div></div>
+          <div class="field">
+            <label for="tracked-item">Tracked item for achievements</label>
+            <select id="tracked-item" name="tracked-item" form="backend-form"<?= $tracked_item_locked ? ' disabled aria-describedby="tracked-item-hint"' : '' ?>>
+              <?php foreach (array_keys(achievement_measures()) as $item): ?>
+                <option value="<?= e($item) ?>"<?= selected('tracked-item', 'tracked_item', $item, 'Approved activity') ?>><?= e($item) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <?php if ($tracked_item_locked): ?>
+              <p class="field-hint" id="tracked-item-hint">The tracked item is fixed after evidence is submitted.</p>
+            <?php endif; ?>
+          </div>
+          </div>
           <div class="upload-area">
             <svg class="upload-thumbnail challenge-illustration" viewbox="0 0 600 600" width="600" height="600" role="img" aria-label="No image selected">
               <rect width="600" height="600" fill="var(--sage)"></rect>

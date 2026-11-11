@@ -28,7 +28,8 @@ if (str_contains($section,'challenges') || str_contains($section,'challenge-bala
 } elseif ($section === 'faculty-activities-faculty-cleanup') {
     $record = $id ? (one('SELECT * FROM faculty_activities WHERE id=? AND faculty=?',[$id,$faculty]) ?? []) : [];
 } elseif ($section === 'audit-log-audit-details') {
-    $record = $id ? (one('SELECT a.*,u.full_name FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id WHERE a.id=?',[$id]) ?? []) : [];
+    require_once __DIR__ . '/audit.php';
+    $record = $id ? (audit_record($id) ?? []) : [];
 }
 if ($id && !$record) {
     http_response_code(404);
@@ -41,11 +42,6 @@ function value($field, $column = '', $default = '') {
 }
 function selected($field, $column, $option, $default = '') {
     return html_entity_decode(value($field,$column,$default),ENT_QUOTES,'UTF-8') === (string)$option ? ' selected' : '';
-}
-function permission_checked($field, $column) {
-    global $record;
-    $checked=$_SERVER['REQUEST_METHOD']==='POST' ? isset($_POST[$field]) : (bool)($record[$column] ?? 1);
-    return $checked ? 'checked' : '';
 }
 function page_records($kind) {
     global $user,$role,$uid,$faculty,$section,$record;
@@ -86,9 +82,17 @@ function page_records($kind) {
     if ($kind === 'campaigns') return rows('SELECT * FROM campaigns ORDER BY id DESC');
     if ($kind === 'activities') return rows('SELECT * FROM faculty_activities WHERE faculty=? ORDER BY activity_date DESC',[$faculty]);
     if ($kind === 'reports') return $role === 'admin' ? rows('SELECT * FROM faculty_reports ORDER BY id DESC') : rows('SELECT * FROM faculty_reports WHERE faculty=? ORDER BY id DESC',[$faculty]);
-    if ($kind === 'audit') return rows('SELECT a.*,u.full_name FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.id DESC LIMIT 500');
-    if ($kind === 'achievement-rules') return rows('SELECT ar.*,a.name FROM achievement_rules ar JOIN achievements a ON a.id=ar.achievement_id ORDER BY a.id,ar.id');
-    if ($kind === 'transactions') return rows('SELECT * FROM point_transactions WHERE user_id=? ORDER BY id DESC',[$record['id'] ?? $uid]);
+    if ($kind === 'achievement-rules') return rows("SELECT a.name, ar.required_count, ar.condition_name,
+        COALESCE(CONCAT('Approved submissions in ', c.title), ar.item) AS item
+        FROM achievement_rules ar JOIN achievements a ON a.id=ar.achievement_id
+        LEFT JOIN challenges c ON c.id=ar.challenge_id ORDER BY a.id,ar.id");
+    if ($kind === 'transactions') return rows('SELECT p.id,p.points,p.reason,p.created_at,p.reverses_id,
+        s.id AS submission_id,s.description,s.quantity,s.photo,s.status,s.review_notes,s.created_at AS submitted_at,c.title
+        FROM point_transactions p
+        LEFT JOIN point_transactions original ON original.id=p.reverses_id
+        LEFT JOIN submissions s ON s.id=COALESCE(p.submission_id,original.submission_id) AND s.user_id=p.user_id
+        LEFT JOIN challenges c ON c.id=s.challenge_id
+        WHERE p.user_id=? ORDER BY p.created_at DESC,p.id DESC', [$record['id']]);
     if ($kind === 'actions-by-month') {
         $scope=$role === 'faculty' ? ' AND u.faculty=?' : ($role === 'user' ? ' AND u.id=?' : '');
         $params=$role === 'faculty' ? [$faculty] : ($role === 'user' ? [$uid] : []);
@@ -102,19 +106,27 @@ function page_records($kind) {
     return [];
 }
 function achievement_progress($achievement_id, $user_id, $faculty_name = null) {
-    $rules = rows('SELECT * FROM achievement_rules WHERE achievement_id=?',[$achievement_id]);
-    $earned = count($rules)>0;
+    $rules = rows('SELECT ar.*, c.title AS challenge_title FROM achievement_rules ar LEFT JOIN challenges c ON c.id=ar.challenge_id WHERE ar.achievement_id=? ORDER BY ar.id', [$achievement_id]);
+    $earned = count($rules) > 0;
+    $measures = achievement_measures();
     foreach ($rules as &$rule) {
         $item = $rule['item'] === 'Approved activity' ? '' : $rule['item'];
-        $measure = in_array($rule['item'],['Plastic bottles','Reusable cup'],true) ? 'COALESCE(SUM(s.quantity),0)' : 'COUNT(*)';
+        $measure = ($measures[$rule['item']] ?? 'submissions') === 'quantity' ? 'COALESCE(SUM(s.quantity),0)' : 'COUNT(*)';
         $join = $faculty_name === null ? '' : ' JOIN users u ON u.id=s.user_id';
         $scope = $faculty_name === null ? 's.user_id=?' : "u.faculty=? AND u.role='user'";
-        $sql="SELECT " . $measure . " AS total FROM submissions s JOIN challenges c ON c.id=s.challenge_id" . $join . " WHERE " . $scope . " AND s.status='approved'";
-        $params=[$faculty_name ?? $user_id];
-        if ($item !== '') { $sql.=' AND c.tracked_item=?'; $params[]=$item; }
-        $rule['progress']=(int)one($sql,$params)['total'];
-        $met=$rule['condition_name'] === 'Exactly' ? $rule['progress'] === (int)$rule['required_count'] : $rule['progress'] >= (int)$rule['required_count'];
-        $earned=$earned && $met;
+        $sql = "SELECT $measure AS total FROM submissions s JOIN challenges c ON c.id=s.challenge_id$join WHERE $scope AND s.status='approved'";
+        $params = [$faculty_name ?? $user_id];
+        if ($item !== '') {
+            $sql .= ' AND c.tracked_item=?';
+            $params[] = $item;
+        }
+        if ($rule['challenge_id'] !== null) {
+            $sql .= ' AND s.challenge_id=?';
+            $params[] = $rule['challenge_id'];
+            $rule['item'] = 'Approved submissions in ' . $rule['challenge_title'];
+        }
+        $rule['progress'] = (int)one($sql, $params)['total'];
+        $earned = $earned && achievement_count_met($rule['condition_name'], $rule['progress'], (int)$rule['required_count']);
     }
     
     $campaign_badge=$faculty_name === null ? one('SELECT * FROM user_achievements WHERE user_id=? AND achievement_id=?',[$user_id,$achievement_id]) : null;

@@ -26,8 +26,12 @@ foreach($cards as $card) {
   <?php if($role!=='admin' && $earned && $next): ?><p class="field-hint">Next level: <?= e(tier_label($next)) ?></p><?php endif; ?>
   <?php if($role!=='admin' && $earned && !$next && $tier): ?><p class="field-hint">Highest available level reached.</p><?php endif; ?>
   <?php foreach($rules as $rule): ?>
-  <p><?= e($rule['item']) ?>: <?= (int)$rule['progress'] ?> / <?= (int)$rule['required_count'] ?> (<?= e($rule['condition_name']) ?>)</p>
-  <?php if($role!=='admin'): ?><progress value="<?= min((int)$rule['progress'],(int)$rule['required_count']) ?>" max="<?= max(1,(int)$rule['required_count']) ?>" aria-label="<?= e($badge['name'].' '.$rule['item']) ?>">Progress</progress><?php endif; ?>
+    <?php if ($role === 'admin'): ?>
+      <p><?= e($rule['item']) ?> · <?= e($rule['condition_name']) ?> <?= (int)$rule['required_count'] ?></p>
+    <?php else: ?>
+      <p><?= e($rule['item']) ?>: <?= (int)$rule['progress'] ?> / <?= (int)$rule['required_count'] ?> (<?= e($rule['condition_name']) ?>)</p>
+      <progress value="<?= min((int)$rule['progress'],(int)$rule['required_count']) ?>" max="<?= max(1,(int)$rule['required_count']) ?>" aria-label="<?= e($badge['name'].' '.$rule['item']) ?>">Progress</progress>
+    <?php endif; ?>
   <?php endforeach; ?>
   <?php if($role==='admin'): ?><a class="text-link" href="<?= e($base) ?>/admin/achievements.php?view=achievements-edit&amp;id=<?= (int)$badge['id'] ?>">Edit achievement</a><?php endif; ?>
 </article>

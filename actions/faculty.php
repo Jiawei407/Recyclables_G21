@@ -1,6 +1,7 @@
 <?php
 if ($action === 'save-activity') {
     require_role('faculty');
+    require_permission('create-activities');
     $name = post('activity-name'); $location = post('activity-location'); $details = post('activity-details');
     $date = post('activity-date'); $parsed = DateTime::createFromFormat('!Y-m-d\TH:i',$date);
     need($parsed && $parsed->format('Y-m-d\TH:i') === $date, 'Enter a valid activity date and time.');
@@ -11,6 +12,7 @@ if ($action === 'save-activity') {
 }
 if ($action === 'promote') {
     require_role('faculty');
+    require_permission('feature-challenges');
     $id = (int)post('id');
     if (post('remove') === '1') {
         query('DELETE FROM faculty_promotions WHERE faculty=? AND challenge_id=?',[$user['faculty'],$id]);
@@ -22,6 +24,7 @@ if ($action === 'promote') {
 }
 if ($action === 'save-report') {
     require_role('faculty');
+    require_permission('submit-reports');
     $activity = post('report-activity'); $period = post('report-period'); $outcome = post('report-outcome');
     need($activity !== '' && strlen($activity)<=180 && $outcome !== '', 'Enter an activity and outcome.');
     need(in_array($period,['All time','Current month','Previous month'],true), 'Choose a reporting period.');

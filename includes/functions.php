@@ -55,17 +55,51 @@ function date_value($key, $default = '') {
 }
 function audit($action, $details) {
     global $user;
-    query('INSERT INTO audit_logs (actor_id, action, details) VALUES (?, ?, ?)', [$user['id'] ?? null, $action, $details]);
+    query('INSERT INTO audit_logs (actor_id, actor_name, actor_role, action, details) VALUES (?, ?, ?, ?, ?)',
+        [$user['id'] ?? null, $user['full_name'] ?? null, $user['role'] ?? null, $action, $details]);
 }
-function save_upload($field, $pdf_allowed = false) {
+function badge_image_error($path) {
+    $invalid = 'Choose a valid, complete JPG or PNG badge image.';
+    $size = @getimagesize($path);
+    if (!$size || !in_array($size[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true)) return $invalid;
+    if (min($size[0], $size[1]) < 128 || max($size[0], $size[1]) > 2048) {
+        return 'Badge width and height must each be between 128 and 2048 pixels.';
+    }
+    if (!extension_loaded('gd')) {
+        return 'Badge image validation requires the PHP GD extension. Enable it in XAMPP and try again.';
+    }
+
+    $jpeg = $size[2] === IMAGETYPE_JPEG;
+    $end = $jpeg ? "\xff\xd9" : "\x00\x00\x00\x00IEND\xae\x42\x60\x82";
+    if (file_get_contents($path, false, null, -strlen($end)) !== $end) return $invalid;
+
+    // GD otherwise tolerates some incomplete JPEG files. Treat any decoding warning as failure.
+    $ignore_warnings = $jpeg ? ini_set('gd.jpeg_ignore_warning', '0') : false;
+    $warning = false;
+    set_error_handler(static function () use (&$warning) {
+        $warning = true;
+        return true;
+    });
+    try {
+        $image = $jpeg ? imagecreatefromjpeg($path) : imagecreatefrompng($path);
+    } finally {
+        restore_error_handler();
+        if ($ignore_warnings !== false) ini_set('gd.jpeg_ignore_warning', $ignore_warnings);
+    }
+    return $image && !$warning ? '' : $invalid;
+}
+function save_upload($field, $pdf_allowed = false, $badge = false) {
     if (!isset($_FILES[$field]) || $_FILES[$field]['error'] === UPLOAD_ERR_NO_FILE) return '';
     $file = $_FILES[$field];
-    need($file['error'] === UPLOAD_ERR_OK && $file['size'] > 0 && $file['size'] <= 5 * 1024 * 1024, 'Choose a file smaller than 5 MB.');
+    need($file['error'] === UPLOAD_ERR_OK && $file['size'] > 0 && $file['size'] <= 5 * 1024 * 1024, 'Choose a file up to 5 MB.');
     $type = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
     $types = ['image/jpeg' => 'jpg', 'image/png' => 'png'];
     if ($pdf_allowed) $types['application/pdf'] = 'pdf';
     need(isset($types[$type]), $pdf_allowed ? 'Choose a JPG, PNG or PDF.' : 'Choose a JPG or PNG image.');
-    if ($type !== 'application/pdf') {
+    if ($badge) {
+        $problem = badge_image_error($file['tmp_name']);
+        need($problem === '', $problem);
+    } elseif ($type !== 'application/pdf') {
         $image = getimagesize($file['tmp_name']);
         need($image && $image[0] * $image[1] <= 40000000, 'Choose a valid image smaller than 40 megapixels.');
     }
@@ -90,6 +124,6 @@ function action_success($entity, $operation, $path, $name = '', $details = '') {
 
 function evidence_image($submission,$width=900,$height=480) {
     global $base;
-    if (empty($submission['photo'])) return '<p class="notice notice--info">Sample test record: no photo attached.</p>';
+    if (empty($submission['photo'])) return '<p class="notice notice--info">No evidence photo is attached.</p>';
     return '<img class="preview-image" src="'.e($base).'/file.php?type=evidence&amp;id='.(int)$submission['id'].'" alt="Submitted evidence" width="'.(int)$width.'" height="'.(int)$height.'">';
 }

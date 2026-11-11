@@ -45,3 +45,55 @@ function review_note($decision,$reason,$description) {
     }
     return $reason . ($description !== '' ? ': '.$description : '');
 }
+
+function reversible_submission_points($activity) {
+    if (empty($activity['submission_id']) || ($activity['status'] ?? '') !== 'approved' || !empty($activity['reverses_id'])) return 0;
+    return max(0, (int)($activity['points'] ?? 0));
+}
+
+function achievement_measures() {
+    return [
+        'Approved activity' => 'submissions',
+        'Plastic bottles' => 'quantity',
+        'Aluminum cans' => 'quantity',
+        'Reusable cup' => 'quantity',
+        'Campus cleanup' => 'submissions',
+    ];
+}
+
+function achievement_rule($count, $measure, $condition, $challenge) {
+    if ($count === '' && $measure === '' && $condition === '' && $challenge === '') return null;
+    if (!ctype_digit($count) || (int)$count < 1 || (int)$count > 1000000) {
+        throw new InvalidArgumentException('Enter a whole count from 1 to 1,000,000 for each requirement.');
+    }
+    if (!in_array($condition, ['At least', 'Exactly'], true)) {
+        throw new InvalidArgumentException('Choose a condition for each requirement.');
+    }
+    if ($measure === 'specific-challenge') {
+        if (!ctype_digit($challenge) || (int)$challenge < 1 || (int)$challenge > 2147483647) {
+            throw new InvalidArgumentException('Choose a challenge for each challenge-specific requirement.');
+        }
+        return [(int)$count, 'Approved activity', $condition, (int)$challenge];
+    }
+    if (!isset(achievement_measures()[$measure])) {
+        throw new InvalidArgumentException('Choose a measure for each requirement.');
+    }
+    return [(int)$count, $measure, $condition, null];
+}
+
+function badge_identity($mode, $family, $tier) {
+    if ($mode === 'standalone') return ['', 'bronze'];
+    if ($mode !== 'tiered') throw new InvalidArgumentException('Choose a badge format.');
+    $family = strtolower($family);
+    if (strlen($family) > 80 || !preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/D', $family)) {
+        throw new InvalidArgumentException('Enter a family using lowercase letters, numbers and single hyphens.');
+    }
+    if (!in_array($tier, ['bronze', 'silver', 'gold'], true)) {
+        throw new InvalidArgumentException('Choose Bronze, Silver or Gold.');
+    }
+    return [$family, $tier];
+}
+
+function achievement_count_met($condition, $count, $target) {
+    return $condition === 'Exactly' ? $count === $target : $count >= $target;
+}

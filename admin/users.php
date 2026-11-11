@@ -11,601 +11,216 @@ $page=screen_page($screens,'users-users');
 $page_role='admin';
 require __DIR__.'/../includes/bootstrap.php';
 require __DIR__.'/../includes/data.php';
-require __DIR__.'/../includes/metrics.php';
 require __DIR__.'/../includes/layout.php';
-switch($view) {
-case 'users-create-user':
+
+$creating = $view === 'users-create-user';
+$editing = $view === 'users-edit-user';
+$confirming = in_array($view, ['users-delete-user','users-suspend-user'], true);
+$deleting = $view === 'users-delete-user';
+$can_manage_users = user_has_permission($user, 'manage-users');
+$can_manage_admins = can_manage_admin_accounts($user);
+if ($view !== 'users-users') require_permission('manage-users');
+if ($editing || $confirming) {
+    $selected_id = filter_var($_GET['id'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
+    if (!$selected_id || !$record) {
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') redirect('admin/users-users.php');
+        $editing = $confirming = false;
+    } elseif ($record['role'] === 'admin' && !$can_manage_admins) {
+        http_response_code(403);
+        exit('Only an administrator with all permissions can manage administrator accounts.');
+    }
+}
+
+$role_names = [
+    'user'=>'Registered User',
+    'faculty'=>'Faculty Representative',
+    'coordinator'=>'Sustainability Coordinator',
+    'admin'=>'Administrator',
+];
+$self = ($editing || $confirming) && (int)$record['id'] === (int)$user['id'];
+$list_url = e(route_url('admin/users-users.php'));
+$edit_url = ($editing || $confirming) ? e(route_url('admin/users-edit-user.php?id=' . $id)) : '';
+$selected_role = post('designated-role', $editing ? $record['role'] : '');
+$posted_permissions = !$self && post('permissions-role') === $selected_role ? ($_POST['permissions'] ?? []) : null;
+
 page_start('Users','Users',false);
 ?>
 <main id="main-content" class="workspace-content">
-      
-      <?php include __DIR__ . '/../includes/notices.php'; ?><div class="page-header">
-        <div>
-          <h1><?= section_icon('Users') ?>Users</h1>
-          <p class="context-line">Administrator</p>
-          <p class="page-description">Give a new member a clear place on the platform.</p>
-        </div>
+  <?php include __DIR__ . '/../includes/notices.php'; ?>
+  <div class="page-header">
+    <div><h1><?= section_icon('Users') ?>Users</h1></div>
+  </div>
+  <div class="stack">
+    <nav class="page-tabs" aria-label="Section views">
+      <a href="<?= $list_url ?>" <?= !$creating && !$editing && !$confirming ? 'class="is-active" aria-current="page"' : '' ?>>Users</a>
+      <?php if ($can_manage_users): ?>
+        <a href="<?= e(route_url('admin/users-create-user.php')) ?>" <?= $creating ? 'class="is-active" aria-current="page"' : '' ?>>Create user</a>
+      <?php endif; ?>
+      <?php if ($edit_url): ?>
+        <a href="<?= $edit_url ?>" class="is-active" <?= $editing ? 'aria-current="page"' : '' ?>>Edit user</a>
+      <?php endif; ?>
+    </nav>
+
+    <?php if ($creating || $editing): ?>
+    <section class="panel" aria-labelledby="user-form-title">
+      <div class="panel-heading">
+        <h2 id="user-form-title"><?= $editing ? 'Edit user' : 'Create a user' ?></h2>
       </div>
-      <div class="stack">
-        <nav class="page-tabs" aria-label="Section views">
-          <a href="../admin/users.php?view=users-users">Users</a>
-          <a href="../admin/users.php?view=users-create-user" class="is-active" aria-current="page">Create user</a>
-          <a href="../admin/users.php?view=users-edit-user">Edit user</a>
-        </nav>
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>Create a user</h2>
-            <p class="muted">Review the account details before selecting permissions.</p>
-          </div>
-          <div class="stack" data-native-validation="" aria-label="Create user account">
-            <div class="form-grid">
-              <div class="field">
-                <label for="full-name">Full name</label>
-                <input id="full-name" type="text" placeholder="Full name" required form="backend-form" name="full-name" value="<?php echo value('full-name','full_name',''); ?>">
-              </div>
-              <div class="field">
-                <label for="email">Email</label>
-                <input id="email" type="email" placeholder="name@example.com" required maxlength="254" pattern="[^\s@]+@[^\s@]+\.[^\s@]+" autocomplete="email" aria-describedby="email-error" form="backend-form" name="email" value="<?php echo value('email','email',''); ?>">
-                <p class="field-error" id="email-error">Enter a valid email address, for example name@example.com.</p>
-              </div>
-              <div class="field">
-                <label for="university-id">University ID</label>
-                <input id="university-id" type="text" placeholder="University ID" required form="backend-form" name="university-id" value="<?php echo value('university-id','university_id',''); ?>">
-              </div>
-              <div class="field">
-                <label for="faculty">Faculty</label>
-                <select id="faculty" form="backend-form" name="faculty">
-                  <option value="" <?php echo selected('faculty','faculty','','') ? 'selected' : ''; ?>>Choose an option</option>
-                  <option value="School of Computing" <?php echo selected('faculty','faculty','School of Computing','') ? 'selected' : ''; ?>>School of Computing</option>
-                  <option value="School of Engineering" <?php echo selected('faculty','faculty','School of Engineering','') ? 'selected' : ''; ?>>School of Engineering</option>
-                  <option value="School of Business" <?php echo selected('faculty','faculty','School of Business','') ? 'selected' : ''; ?>>School of Business</option>
-                  <option value="Campus Sustainability" <?php echo selected('faculty','faculty','Campus Sustainability','') ? 'selected' : ''; ?>>Campus Sustainability</option>
-                <option value="School of Media" <?= selected('faculty','faculty','School of Media') ?>>School of Media</option>
-</select>
-              </div>
-              <div class="field">
-                <label for="designated-role">Designated role</label>
-                <select id="designated-role" form="backend-form" name="designated-role">
-                  <option value="" <?php echo selected('designated-role','role','','') ? 'selected' : ''; ?>>Choose an option</option>
-                  <option value="user" <?php echo selected('designated-role','role','user','') ? 'selected' : ''; ?>>Registered User</option>
-                  <option value="faculty" <?php echo selected('designated-role','role','faculty','') ? 'selected' : ''; ?>>Faculty Representative</option>
-                  <option value="coordinator" <?php echo selected('designated-role','role','coordinator','') ? 'selected' : ''; ?>>Sustainability Coordinator</option>
-                  <option value="admin" <?php echo selected('designated-role','role','admin','') ? 'selected' : ''; ?>>Administrator</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="account-status">Account status</label>
-                <select id="account-status" form="backend-form" name="account-status">
-                  <option value="" <?php echo selected('account-status','status','','active') ? 'selected' : ''; ?>>Choose an option</option>
-                  <option value="active" <?php echo selected('account-status','status','active','active') ? 'selected' : ''; ?>>Active</option>
-                  <option value="suspended" <?php echo selected('account-status','status','suspended','active') ? 'selected' : ''; ?>>Suspended</option>
-                  <option value="inactive" <?php echo selected('account-status','status','inactive','active') ? 'selected' : ''; ?>>Inactive</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="new-password">Set password</label>
-                <input title="Use 8-72 characters including a special character, for example @, ! or #." maxlength="72" minlength="8" pattern="(?=.*[^\p{L}\p{N}\s]).{8,72}" id="new-password" type="password" autocomplete="new-password" form="backend-form" name="new-password" required="">
-                <small class="field-help">Enter the account details.</small>
-              </div>
-              <div class="field">
-                <label for="confirm-password">Confirm password</label>
-                <input title="Use 8-72 characters including a special character, for example @, ! or #." maxlength="72" minlength="8" pattern="(?=.*[^\p{L}\p{N}\s]).{8,72}" id="confirm-password" type="password" autocomplete="new-password" form="backend-form" name="confirm-password" required="">
-              </div>
-            </div>
-            <fieldset class="check-group">
-              <legend>Permissions</legend>
-              <label class="check-option">
-                <input type="checkbox" form="backend-form" name="can-join" value="1" <?= permission_checked('can-join','can_join') ?>>
-                <span>Join challenges</span>
-              </label>
-              <label class="check-option">
-                <input type="checkbox" form="backend-form" name="can-submit" value="1" <?= permission_checked('can-submit','can_submit') ?>>
-                <span>Submit evidence</span>
-              </label>
-              </fieldset>
-            <div class="form-actions">
-              <button class="button button--primary" type="submit" form="backend-form">Create user</button>
-              <a class="button button--outline" href="../admin/users.php?view=users-users">Cancel</a>
-            </div>
-          </div>
-        </section>
-      </div>
-    <form id="backend-form" method="post" enctype="multipart/form-data" hidden=""><?php echo csrf_field(); ?><input type="hidden" name="action" value="save-user" form="backend-form"><input type="hidden" name="id" value="<?php echo (int)$id; ?>" form="backend-form"></form></main>
-  
-<?php page_end(); break;
-case 'users-delete-user':
-page_start('Users','Users',true);
-?>
-<main id="main-content" class="workspace-content">
-        
-        <div class="page-header">
-          <div>
-            <h1><?= section_icon('Users') ?>Users</h1>
-            <p class="context-line">Administrator</p>
-            <p class="page-description">Review the selected account’s details, role, and permissions.</p>
-          </div>
-          <p class="note">No record selected.</p>
-        </div>
-        <div class="stack">
-          <nav class="page-tabs" aria-label="Section views">
-            <a href="../admin/users.php?view=users-users">Users</a>
-            <a href="../admin/users.php?view=users-create-user">Create user</a>
-            <a href="../admin/users.php?view=users-edit-user" class="is-active" aria-current="page">Edit user</a>
-          </nav>
-          <section class="panel">
-            <div class="panel-heading">
-              <h2>Edit user</h2>
-              <p class="muted">Review the account details before selecting permissions.</p>
-            </div>
-            <div class="stack" data-native-validation="" aria-label="Edit user account">
-              <div class="form-grid">
-                <div class="field">
-                  <label for="full-name">Full name</label>
-                  <input id="full-name" type="text" placeholder="Full name" required form="backend-form" name="full-name" value="<?php echo value('full-name','full_name',''); ?>">
-                </div>
-                <div class="field">
-                  <label for="email">Email</label>
-                  <input id="email" type="email" placeholder="name@example.com" required maxlength="254" pattern="[^\s@]+@[^\s@]+\.[^\s@]+" autocomplete="email" aria-describedby="email-error" form="backend-form" name="email" value="<?php echo value('email','email',''); ?>">
-                  <p class="field-error" id="email-error">Enter a valid email address, for example name@example.com.</p>
-                </div>
-                <div class="field">
-                  <label for="university-id">University ID</label>
-                  <input id="university-id" type="text" placeholder="University ID" required form="backend-form" name="university-id" value="<?php echo value('university-id','university_id',''); ?>">
-                </div>
-                <div class="field">
-                  <label for="faculty">Faculty</label>
-                  <select id="faculty" form="backend-form" name="faculty">
-                    <option value="" <?php echo selected('faculty','faculty','','') ? 'selected' : ''; ?>>Choose an option</option>
-                    <option value="School of Computing" <?php echo selected('faculty','faculty','School of Computing','') ? 'selected' : ''; ?>>School of Computing</option>
-                    <option value="School of Engineering" <?php echo selected('faculty','faculty','School of Engineering','') ? 'selected' : ''; ?>>School of Engineering</option>
-                    <option value="School of Business" <?php echo selected('faculty','faculty','School of Business','') ? 'selected' : ''; ?>>School of Business</option>
-                    <option value="Campus Sustainability" <?php echo selected('faculty','faculty','Campus Sustainability','') ? 'selected' : ''; ?>>Campus Sustainability</option>
-                  <option value="School of Media" <?= selected('faculty','faculty','School of Media') ?>>School of Media</option>
-</select>
-                </div>
-                <div class="field">
-                  <label for="designated-role">Designated role</label>
-                  <select id="designated-role" form="backend-form" name="designated-role">
-                    <option value="" <?php echo selected('designated-role','role','','') ? 'selected' : ''; ?>>Choose an option</option>
-                    <option value="user" <?php echo selected('designated-role','role','user','') ? 'selected' : ''; ?>>Registered User</option>
-                    <option value="faculty" <?php echo selected('designated-role','role','faculty','') ? 'selected' : ''; ?>>Faculty Representative</option>
-                    <option value="coordinator" <?php echo selected('designated-role','role','coordinator','') ? 'selected' : ''; ?>>Sustainability Coordinator</option>
-                    <option value="admin" <?php echo selected('designated-role','role','admin','') ? 'selected' : ''; ?>>Administrator</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="account-status">Account status</label>
-                  <select id="account-status" form="backend-form" name="account-status">
-                    <option value="" <?php echo selected('account-status','status','','active') ? 'selected' : ''; ?>>Choose an option</option>
-                    <option value="active" <?php echo selected('account-status','status','active','active') ? 'selected' : ''; ?>>Active</option>
-                    <option value="suspended" <?php echo selected('account-status','status','suspended','active') ? 'selected' : ''; ?>>Suspended</option>
-                    <option value="inactive" <?php echo selected('account-status','status','inactive','active') ? 'selected' : ''; ?>>Inactive</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="new-password">New password (optional)</label>
-                  <input title="Use 8-72 characters including a special character, for example @, ! or #." maxlength="72" minlength="8" pattern="(?=.*[^\p{L}\p{N}\s]).{8,72}" id="new-password" type="password" autocomplete="new-password" form="backend-form" name="new-password">
-                  <small class="field-help">Enter the account details.</small>
-                </div>
-                <div class="field">
-                  <label for="confirm-password">Confirm password</label>
-                  <input title="Use 8-72 characters including a special character, for example @, ! or #." maxlength="72" minlength="8" pattern="(?=.*[^\p{L}\p{N}\s]).{8,72}" id="confirm-password" type="password" autocomplete="new-password" form="backend-form" name="confirm-password">
-                </div>
-              </div>
-              <fieldset class="check-group">
-                <legend>Permissions</legend>
-                <label class="check-option">
-                  <input type="checkbox" form="backend-form">
-                  <span>Join challenges</span>
-                </label>
-                <label class="check-option">
-                  <input type="checkbox" form="backend-form">
-                  <span>Submit evidence</span>
-                </label>
-                <label class="check-option">
-                  <input type="checkbox" form="backend-form">
-                  <span>Manage faculty</span>
-                </label>
-                <label class="check-option">
-                  <input type="checkbox" form="backend-form">
-                  <span>Review submissions</span>
-                </label>
-              </fieldset>
-              <div class="form-actions">
-                <button class="button button--primary" type="submit" form="backend-form">Save user</button>
-                <a class="button button--outline" href="../admin/users.php?view=users-users">Cancel</a>
-              </div>
-            </div>
-          </section>
-          <section class="panel">
-            <div class="panel-heading">
-              <h2>Account controls</h2>
-            </div>
-            <p class="muted">Select an account before confirming a suspension or deletion.</p>
-            <div class="form-actions">
-              <a class="button button--outline" href="../admin/users.php?view=users-suspend-user<?php echo $id ? '&amp;id=' . (int)$id : ''; ?>">Suspend user</a>
-              <a class="button button--danger" href="../admin/users.php?view=users-delete-user<?php echo $id ? '&amp;id=' . (int)$id : ''; ?>">Delete user</a>
-            </div>
-          </section>
-        </div>
-      </main>
-    </div>
-    <div class="dialog-overlay">
-      
-      <section class="action-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
-        <header class="dialog-header">
-          <div>
-            <h2 id="dialog-title">Delete user</h2>
-            <p class="context-line">Administrator</p>
-          </div>
-          <a class="close-button" href="../admin/users.php?view=users-edit-user" aria-label="Close dialog">
-            <svg class="icon" aria-hidden="true" viewbox="0 0 24 24">
-              <path d="m6 6 12 12M6 18 18 6"></path>
-            </svg>
-          </a>
-        </header>
-        <?php include __DIR__ . '/../includes/notices.php'; ?><div class="dialog-content">
-          <div class="stack">
-            <aside class="notice notice--danger">
-              <div>
-                <strong>No account selected</strong>
-                <p>Select an account to review access and associated records before deletion.</p>
-              </div>
-            </aside>
-            <dl class="detail-list">
-              <div>
-                <dt>Account</dt>
-                <dd>—</dd>
-              </div>
-              <div>
-                <dt>Faculty</dt>
-                <dd><?php echo e($record['faculty'] ?? 'Not selected'); ?></dd>
-              </div>
-              <div>
-                <dt>Current status</dt>
-                <dd>—</dd>
-              </div>
-            </dl>
-            <div class="form-actions">
-              <button class="button button--danger" type="submit" form="backend-form">Delete user</button>
-              <a class="button button--outline" href="../admin/users.php?view=users-edit-user">Keep this user</a>
-            </div>
-          </div>
-        </div>
-      <form id="backend-form" method="post" enctype="multipart/form-data" hidden="" data-confirm="Confirm this change?"><?php echo csrf_field(); ?><input type="hidden" name="action" value="delete-user" form="backend-form"><input type="hidden" name="id" value="<?php echo (int)$id; ?>" form="backend-form"></form></section>
-    </div>
-  
-<?php page_end(); break;
-case 'users-edit-user':
-page_start('Users','Users',false);
-?>
-<main id="main-content" class="workspace-content">
-      
-      <?php include __DIR__ . '/../includes/notices.php'; ?><div class="page-header">
-        <div>
-          <h1><?= section_icon('Users') ?>Users</h1>
-          <p class="context-line">Administrator</p>
-          <p class="page-description">Review the selected account’s details, role, and permissions.</p>
-        </div>
-        <p class="note">No record selected.</p>
-      </div>
-      <div class="stack">
-        <nav class="page-tabs" aria-label="Section views">
-          <a href="../admin/users.php?view=users-users">Users</a>
-          <a href="../admin/users.php?view=users-create-user">Create user</a>
-          <a href="../admin/users.php?view=users-edit-user" class="is-active" aria-current="page">Edit user</a>
-        </nav>
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>Edit user</h2>
-            <p class="muted">Review the account details before selecting permissions.</p>
-          </div>
-          <div class="stack" data-native-validation="" aria-label="Edit user account">
-            <div class="form-grid">
-              <div class="field">
-                <label for="full-name">Full name</label>
-                <input id="full-name" type="text" placeholder="Full name" required form="backend-form" name="full-name" value="<?php echo value('full-name','full_name',''); ?>">
-              </div>
-              <div class="field">
-                <label for="email">Email</label>
-                <input id="email" type="email" placeholder="name@example.com" required maxlength="254" pattern="[^\s@]+@[^\s@]+\.[^\s@]+" autocomplete="email" aria-describedby="email-error" form="backend-form" name="email" value="<?php echo value('email','email',''); ?>">
-                <p class="field-error" id="email-error">Enter a valid email address, for example name@example.com.</p>
-              </div>
-              <div class="field">
-                <label for="university-id">University ID</label>
-                <input id="university-id" type="text" placeholder="University ID" required form="backend-form" name="university-id" value="<?php echo value('university-id','university_id',''); ?>">
-              </div>
-              <div class="field">
-                <label for="faculty">Faculty</label>
-                <select id="faculty" form="backend-form" name="faculty">
-                  <option value="" <?php echo selected('faculty','faculty','','') ? 'selected' : ''; ?>>Choose an option</option>
-                  <option value="School of Computing" <?php echo selected('faculty','faculty','School of Computing','') ? 'selected' : ''; ?>>School of Computing</option>
-                  <option value="School of Engineering" <?php echo selected('faculty','faculty','School of Engineering','') ? 'selected' : ''; ?>>School of Engineering</option>
-                  <option value="School of Business" <?php echo selected('faculty','faculty','School of Business','') ? 'selected' : ''; ?>>School of Business</option>
-                  <option value="Campus Sustainability" <?php echo selected('faculty','faculty','Campus Sustainability','') ? 'selected' : ''; ?>>Campus Sustainability</option>
-                <option value="School of Media" <?= selected('faculty','faculty','School of Media') ?>>School of Media</option>
-</select>
-              </div>
-              <div class="field">
-                <label for="designated-role">Designated role</label>
-                <select id="designated-role" form="backend-form" name="designated-role">
-                  <option value="" <?php echo selected('designated-role','role','','') ? 'selected' : ''; ?>>Choose an option</option>
-                  <option value="user" <?php echo selected('designated-role','role','user','') ? 'selected' : ''; ?>>Registered User</option>
-                  <option value="faculty" <?php echo selected('designated-role','role','faculty','') ? 'selected' : ''; ?>>Faculty Representative</option>
-                  <option value="coordinator" <?php echo selected('designated-role','role','coordinator','') ? 'selected' : ''; ?>>Sustainability Coordinator</option>
-                  <option value="admin" <?php echo selected('designated-role','role','admin','') ? 'selected' : ''; ?>>Administrator</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="account-status">Account status</label>
-                <select id="account-status" form="backend-form" name="account-status">
-                  <option value="" <?php echo selected('account-status','status','','active') ? 'selected' : ''; ?>>Choose an option</option>
-                  <option value="active" <?php echo selected('account-status','status','active','active') ? 'selected' : ''; ?>>Active</option>
-                  <option value="suspended" <?php echo selected('account-status','status','suspended','active') ? 'selected' : ''; ?>>Suspended</option>
-                  <option value="inactive" <?php echo selected('account-status','status','inactive','active') ? 'selected' : ''; ?>>Inactive</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="new-password">New password (optional)</label>
-                <input title="Use 8-72 characters including a special character, for example @, ! or #." maxlength="72" minlength="8" pattern="(?=.*[^\p{L}\p{N}\s]).{8,72}" id="new-password" type="password" autocomplete="new-password" form="backend-form" name="new-password">
-                <small class="field-help">Enter the account details.</small>
-              </div>
-              <div class="field">
-                <label for="confirm-password">Confirm password</label>
-                <input title="Use 8-72 characters including a special character, for example @, ! or #." maxlength="72" minlength="8" pattern="(?=.*[^\p{L}\p{N}\s]).{8,72}" id="confirm-password" type="password" autocomplete="new-password" form="backend-form" name="confirm-password">
-              </div>
-            </div>
-            <fieldset class="check-group">
-              <legend>Permissions</legend>
-              <label class="check-option">
-                <input type="checkbox" form="backend-form" name="can-join" value="1" <?= permission_checked('can-join','can_join') ?>>
-                <span>Join challenges</span>
-              </label>
-              <label class="check-option">
-                <input type="checkbox" form="backend-form" name="can-submit" value="1" <?= permission_checked('can-submit','can_submit') ?>>
-                <span>Submit evidence</span>
-              </label>
-              </fieldset>
-            <div class="form-actions">
-              <button class="button button--primary" type="submit" form="backend-form">Save user</button>
-              <a class="button button--outline" href="../admin/users.php?view=users-users">Cancel</a>
-            </div>
-          </div>
-        </section>
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>Account controls</h2>
-          </div>
-          <p class="muted">Select an account before confirming a suspension or deletion.</p>
-          <div class="form-actions">
-            <a class="button button--outline" href="../admin/users.php?view=users-suspend-user<?php echo $id ? '&amp;id=' . (int)$id : ''; ?>">Suspend user</a>
-            <a class="button button--danger" href="../admin/users.php?view=users-delete-user<?php echo $id ? '&amp;id=' . (int)$id : ''; ?>">Delete user</a>
-          </div>
-        </section>
-      </div>
-    <form id="backend-form" method="post" enctype="multipart/form-data" hidden=""><?php echo csrf_field(); ?><input type="hidden" name="action" value="save-user" form="backend-form"><input type="hidden" name="id" value="<?php echo (int)$id; ?>" form="backend-form"></form></main>
-  
-<?php page_end(); break;
-case 'users-suspend-user':
-page_start('Users','Users',true);
-?>
-<main id="main-content" class="workspace-content">
-        
-        <div class="page-header">
-          <div>
-            <h1><?= section_icon('Users') ?>Users</h1>
-            <p class="context-line">Administrator</p>
-            <p class="page-description">Review the selected account’s details, role, and permissions.</p>
-          </div>
-          <p class="note">No record selected.</p>
-        </div>
-        <div class="stack">
-          <nav class="page-tabs" aria-label="Section views">
-            <a href="../admin/users.php?view=users-users">Users</a>
-            <a href="../admin/users.php?view=users-create-user">Create user</a>
-            <a href="../admin/users.php?view=users-edit-user" class="is-active" aria-current="page">Edit user</a>
-          </nav>
-          <section class="panel">
-            <div class="panel-heading">
-              <h2>Edit user</h2>
-              <p class="muted">Review the account details before selecting permissions.</p>
-            </div>
-            <div class="stack" data-native-validation="" aria-label="Edit user account">
-              <div class="form-grid">
-                <div class="field">
-                  <label for="full-name">Full name</label>
-                  <input id="full-name" type="text" placeholder="Full name" required form="backend-form" name="full-name" value="<?php echo value('full-name','full_name',''); ?>">
-                </div>
-                <div class="field">
-                  <label for="email">Email</label>
-                  <input id="email" type="email" placeholder="name@example.com" required maxlength="254" pattern="[^\s@]+@[^\s@]+\.[^\s@]+" autocomplete="email" aria-describedby="email-error" form="backend-form" name="email" value="<?php echo value('email','email',''); ?>">
-                  <p class="field-error" id="email-error">Enter a valid email address, for example name@example.com.</p>
-                </div>
-                <div class="field">
-                  <label for="university-id">University ID</label>
-                  <input id="university-id" type="text" placeholder="University ID" required form="backend-form" name="university-id" value="<?php echo value('university-id','university_id',''); ?>">
-                </div>
-                <div class="field">
-                  <label for="faculty">Faculty</label>
-                  <select id="faculty" form="backend-form" name="faculty">
-                    <option value="" <?php echo selected('faculty','faculty','','') ? 'selected' : ''; ?>>Choose an option</option>
-                    <option value="School of Computing" <?php echo selected('faculty','faculty','School of Computing','') ? 'selected' : ''; ?>>School of Computing</option>
-                    <option value="School of Engineering" <?php echo selected('faculty','faculty','School of Engineering','') ? 'selected' : ''; ?>>School of Engineering</option>
-                    <option value="School of Business" <?php echo selected('faculty','faculty','School of Business','') ? 'selected' : ''; ?>>School of Business</option>
-                    <option value="Campus Sustainability" <?php echo selected('faculty','faculty','Campus Sustainability','') ? 'selected' : ''; ?>>Campus Sustainability</option>
-                  <option value="School of Media" <?= selected('faculty','faculty','School of Media') ?>>School of Media</option>
-</select>
-                </div>
-                <div class="field">
-                  <label for="designated-role">Designated role</label>
-                  <select id="designated-role" form="backend-form" name="designated-role">
-                    <option value="" <?php echo selected('designated-role','role','','') ? 'selected' : ''; ?>>Choose an option</option>
-                    <option value="user" <?php echo selected('designated-role','role','user','') ? 'selected' : ''; ?>>Registered User</option>
-                    <option value="faculty" <?php echo selected('designated-role','role','faculty','') ? 'selected' : ''; ?>>Faculty Representative</option>
-                    <option value="coordinator" <?php echo selected('designated-role','role','coordinator','') ? 'selected' : ''; ?>>Sustainability Coordinator</option>
-                    <option value="admin" <?php echo selected('designated-role','role','admin','') ? 'selected' : ''; ?>>Administrator</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="account-status">Account status</label>
-                  <select id="account-status" form="backend-form" name="account-status">
-                    <option value="" <?php echo selected('account-status','status','','active') ? 'selected' : ''; ?>>Choose an option</option>
-                    <option value="active" <?php echo selected('account-status','status','active','active') ? 'selected' : ''; ?>>Active</option>
-                    <option value="suspended" <?php echo selected('account-status','status','suspended','active') ? 'selected' : ''; ?>>Suspended</option>
-                    <option value="inactive" <?php echo selected('account-status','status','inactive','active') ? 'selected' : ''; ?>>Inactive</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="new-password">New password (optional)</label>
-                  <input title="Use 8-72 characters including a special character, for example @, ! or #." maxlength="72" minlength="8" pattern="(?=.*[^\p{L}\p{N}\s]).{8,72}" id="new-password" type="password" autocomplete="new-password" form="backend-form" name="new-password">
-                  <small class="field-help">Enter the account details.</small>
-                </div>
-                <div class="field">
-                  <label for="confirm-password">Confirm password</label>
-                  <input title="Use 8-72 characters including a special character, for example @, ! or #." maxlength="72" minlength="8" pattern="(?=.*[^\p{L}\p{N}\s]).{8,72}" id="confirm-password" type="password" autocomplete="new-password" form="backend-form" name="confirm-password">
-                </div>
-              </div>
-              <fieldset class="check-group">
-                <legend>Permissions</legend>
-                <label class="check-option">
-                  <input type="checkbox" form="backend-form">
-                  <span>Join challenges</span>
-                </label>
-                <label class="check-option">
-                  <input type="checkbox" form="backend-form">
-                  <span>Submit evidence</span>
-                </label>
-                <label class="check-option">
-                  <input type="checkbox" form="backend-form">
-                  <span>Manage faculty</span>
-                </label>
-                <label class="check-option">
-                  <input type="checkbox" form="backend-form">
-                  <span>Review submissions</span>
-                </label>
-              </fieldset>
-              <div class="form-actions">
-                <button class="button button--primary" type="submit" form="backend-form">Save user</button>
-                <a class="button button--outline" href="../admin/users.php?view=users-users">Cancel</a>
-              </div>
-            </div>
-          </section>
-          <section class="panel">
-            <div class="panel-heading">
-              <h2>Account controls</h2>
-            </div>
-            <p class="muted">Select an account before confirming a suspension or deletion.</p>
-            <div class="form-actions">
-              <a class="button button--outline" href="../admin/users.php?view=users-suspend-user<?php echo $id ? '&amp;id=' . (int)$id : ''; ?>">Suspend user</a>
-              <a class="button button--danger" href="../admin/users.php?view=users-delete-user<?php echo $id ? '&amp;id=' . (int)$id : ''; ?>">Delete user</a>
-            </div>
-          </section>
-        </div>
-      </main>
-    </div>
-    <div class="dialog-overlay">
-      
-      <section class="action-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
-        <header class="dialog-header">
-          <div>
-            <h2 id="dialog-title">Suspend user</h2>
-            <p class="context-line">Administrator</p>
-          </div>
-          <a class="close-button" href="../admin/users.php?view=users-edit-user" aria-label="Close dialog">
-            <svg class="icon" aria-hidden="true" viewbox="0 0 24 24">
-              <path d="m6 6 12 12M6 18 18 6"></path>
-            </svg>
-          </a>
-        </header>
-        <?php include __DIR__ . '/../includes/notices.php'; ?><div class="dialog-content">
-          <div class="stack">
-            <aside class="notice notice--warning">
-              <div>
-                <strong>No account selected</strong>
-                <p>A suspension would pause access while preserving the account and its review history.</p>
-              </div>
-            </aside>
-            <dl class="detail-list">
-              <div>
-                <dt>Account</dt>
-                <dd>—</dd>
-              </div>
-              <div>
-                <dt>Email</dt>
-                <dd><?php echo e($record['email'] ?? 'Not selected'); ?></dd>
-              </div>
-              <div>
-                <dt>Current status</dt>
-                <dd>—</dd>
-              </div>
-            </dl>
-            <div class="form-actions">
-              <button class="button button--primary" type="submit" form="backend-form">Suspend user</button>
-              <a class="button button--outline" href="../admin/users.php?view=users-edit-user">Keep active</a>
-            </div>
-          </div>
-        </div>
-      <form id="backend-form" method="post" enctype="multipart/form-data" hidden="" data-confirm="Confirm this change?"><?php echo csrf_field(); ?><input type="hidden" name="action" value="suspend-user" form="backend-form"><input type="hidden" name="id" value="<?php echo (int)$id; ?>" form="backend-form"></form></section>
-    </div>
-  
-<?php page_end(); break;
-case 'users-users':
-page_start('Users','Users',false);
-?>
-<main id="main-content" class="workspace-content">
-      
-      <?php include __DIR__ . '/../includes/notices.php'; ?><div class="page-header">
-        <div>
-          <h1><?= section_icon('Users') ?>Users</h1>
-          <p class="context-line">Administrator</p>
-          <p class="page-description">Manage people and their roles with care.</p>
-        </div>
-      </div>
-      <div class="stack">
-        <nav class="page-tabs" aria-label="Section views">
-          <a href="../admin/users.php?view=users-users" class="is-active" aria-current="page">Users</a>
-          <a href="../admin/users.php?view=users-create-user">Create user</a>
-          <a href="../admin/users.php?view=users-edit-user">Edit user</a>
-        </nav>
-        <div class="toolbar" role="search">
+      <form id="backend-form" class="stack" method="post" data-native-validation>
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="save-user">
+        <input type="hidden" name="id" value="<?= $editing ? (int)$id : 0 ?>">
+        <div class="form-grid">
           <div class="field">
-            <label for="search-users">Search users</label>
-            <input id="search-users" name="search-users" type="search" placeholder="Search users">
+            <label for="full-name">Full name</label>
+            <input id="full-name" name="full-name" required maxlength="100" value="<?= value('full-name','full_name') ?>">
           </div>
           <div class="field">
-            <label for="filter-role">Role</label>
-            <select id="filter-role" name="filter-role">
-              <option selected>All roles</option>
-              <option>Registered User</option>
-              <option>Faculty Representative</option>
-              <option>Sustainability Coordinator</option>
-              <option>Administrator</option>
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" required maxlength="254" autocomplete="email" value="<?= value('email') ?>">
+          </div>
+          <div class="field">
+            <label for="university-id">University ID</label>
+            <input id="university-id" name="university-id" required maxlength="20" value="<?= value('university-id','university_id') ?>">
+          </div>
+          <div class="field">
+            <label for="faculty">Faculty</label>
+            <select id="faculty" name="faculty" required>
+              <option value="">Choose a faculty</option>
+              <?php foreach (faculties() as $school): ?>
+                <option value="<?= e($school) ?>" <?= selected('faculty','faculty',$school) ?>><?= e($school) ?></option>
+              <?php endforeach; ?>
             </select>
           </div>
+          <div class="field">
+            <label for="designated-role">Designated role</label>
+            <select id="designated-role" name="designated-role" required>
+              <option value="">Choose a role</option>
+              <?php foreach ($role_names as $key => $label): ?>
+                <?php if (($key === 'admin' && !$can_manage_admins) || ($self && $key !== 'admin')) continue; ?>
+                <option value="<?= e($key) ?>" <?= $key === $selected_role ? 'selected' : '' ?>><?= e($label) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="field">
+            <label for="account-status">Account status</label>
+            <select id="account-status" name="account-status" required>
+              <?php foreach (['active','suspended','inactive'] as $status): ?>
+                <?php if ($self && $status !== 'active') continue; ?>
+                <option value="<?= e($status) ?>" <?= selected('account-status','status',$status,'active') ?>><?= e(ucfirst($status)) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="field">
+            <label for="new-password"><?= $editing ? 'New password' : 'Set password' ?></label>
+            <input id="new-password" name="new-password" type="password" minlength="8" maxlength="72" pattern="(?=.*[^\p{L}\p{N}\s]).{8,72}" autocomplete="new-password" aria-describedby="password-hint" <?= $creating ? 'required' : '' ?>>
+            <small class="field-help" id="password-hint"><?= $editing ? 'Leave blank to keep the current password. ' : '' ?>Use 8–72 characters with a special character.</small>
+          </div>
+          <div class="field">
+            <label for="confirm-password">Confirm password</label>
+            <input id="confirm-password" name="confirm-password" type="password" minlength="8" maxlength="72" pattern="(?=.*[^\p{L}\p{N}\s]).{8,72}" autocomplete="new-password" <?= $creating ? 'required' : '' ?>>
+          </div>
         </div>
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>People on the platform</h2>
-            <p class="muted">A role defines the areas each person can access.</p>
+
+        <p class="muted" data-permission-hint <?= $selected_role ? 'hidden' : '' ?>>Choose a role to see its permissions.</p>
+        <?php foreach ($role_names as $key => $label): ?>
+          <?php if (($key === 'admin' && !$can_manage_admins) || ($self && $key !== 'admin')) continue; ?>
+          <div data-permission-role="<?= e($key) ?>" <?= $key === $selected_role ? '' : 'hidden' ?>>
+            <fieldset class="check-group" <?= $key === $selected_role ? '' : 'disabled' ?>>
+              <legend><?= e($label) ?> permissions</legend>
+              <input type="hidden" name="permissions-role" value="<?= e($key) ?>">
+              <?php foreach (role_permissions($key) as $permission => $description): ?>
+                <?php
+                $current_account = $editing && $record['role'] === $key ? $record : ['role'=>$key];
+                $checked = $key === $selected_role && is_array($posted_permissions)
+                    ? in_array($permission, $posted_permissions, true)
+                    : user_has_permission($current_account, $permission);
+                ?>
+                <label class="check-option">
+                  <input type="checkbox" name="permissions[]" value="<?= e($permission) ?>" <?= $checked ? 'checked' : '' ?> <?= $self ? 'disabled' : '' ?>>
+                  <span><?= e($description) ?></span>
+                </label>
+              <?php endforeach; ?>
+              <?php if ($self): ?><p class="muted">Another administrator can change these permissions.</p><?php endif; ?>
+            </fieldset>
           </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <caption class="visually-hidden">user accounts</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Role</th>
-                  <th scope="col">Faculty</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Action</th>
-                </tr>
-              </thead>
-              <tbody><?php $kind='users'; $columns=['Name', 'Role', 'Faculty', 'Status', 'Action']; include __DIR__ . '/../includes/table.php'; ?></tbody>
-            </table>
-          </div>
-        </section>
+        <?php endforeach; ?>
+        <div class="form-actions">
+          <button class="button button--primary" type="submit"><?= $editing ? 'Save user' : 'Create user' ?></button>
+          <a class="button button--outline" href="<?= $list_url ?>">Cancel</a>
+        </div>
+      </form>
+    </section>
+    <?php if ($editing && !$self): ?>
+      <section class="panel">
+        <h2>Account controls</h2>
+        <div class="form-actions">
+          <?php if ($record['status'] === 'active'): ?>
+            <a class="button button--outline" href="<?= e(route_url('admin/users-suspend-user.php?id=' . $id)) ?>">Suspend user</a>
+          <?php endif; ?>
+          <a class="button button--danger" href="<?= e(route_url('admin/users-delete-user.php?id=' . $id)) ?>">Delete user</a>
+        </div>
+      </section>
+    <?php endif; ?>
+    <script src="<?= e($base) ?>/scripts/user-permissions.js" defer></script>
+    <?php elseif ($confirming): ?>
+      <section class="panel">
+        <h2><?= $deleting ? 'Delete user' : 'Suspend user' ?></h2>
+        <dl class="detail-list">
+          <div><dt>Account</dt><dd><?= e($record['full_name']) ?></dd></div>
+          <div><dt>Email</dt><dd><?= e($record['email']) ?></dd></div>
+          <div><dt>Status</dt><dd><?= e(ucfirst($record['status'])) ?></dd></div>
+        </dl>
+        <?php if ($self): ?>
+          <p>You cannot delete or suspend your own account.</p>
+          <a class="button button--outline" href="<?= $edit_url ?>">Back to user</a>
+        <?php else: ?>
+          <p><?= $deleting ? 'Deletion permanently removes this account. Accounts with evidence or points can be suspended.' : 'Suspension pauses access and keeps the account history.' ?></p>
+          <form method="post" class="form-actions">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="<?= $deleting ? 'delete-user' : 'suspend-user' ?>">
+            <input type="hidden" name="id" value="<?= (int)$id ?>">
+            <button class="button button--danger" type="submit"><?= $deleting ? 'Delete user' : 'Suspend user' ?></button>
+            <a class="button button--outline" href="<?= $edit_url ?>">Cancel</a>
+          </form>
+        <?php endif; ?>
+      </section>
+    <?php else: ?>
+      <div class="toolbar" role="search">
+        <div class="field">
+          <label for="search-users">Search users</label>
+          <input id="search-users" name="search-users" type="search" placeholder="Search users">
+        </div>
+        <div class="field">
+          <label for="filter-role">Role</label>
+          <select id="filter-role" name="filter-role">
+            <option selected>All roles</option>
+            <?php foreach ($role_names as $label): ?><option><?= e($label) ?></option><?php endforeach; ?>
+          </select>
+        </div>
       </div>
-    </main>
-  
-<?php page_end(); break;
-}
+      <section class="panel">
+        <div class="panel-heading"><h2>People on the platform</h2></div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <caption class="visually-hidden">User accounts</caption>
+            <thead><tr>
+              <th scope="col">Name</th>
+              <th scope="col">Role</th>
+              <th scope="col">Faculty</th>
+              <th scope="col">Status</th>
+              <?php if ($can_manage_users): ?><th scope="col">Action</th><?php endif; ?>
+            </tr></thead>
+            <tbody><?php
+              $kind='users';
+              $columns=['Name','Role','Faculty','Status'];
+              if ($can_manage_users) $columns[]='Action';
+              include __DIR__ . '/../includes/table.php';
+            ?></tbody>
+          </table>
+        </div>
+      </section>
+    <?php endif; ?>
+  </div>
+</main>
+<?php page_end();

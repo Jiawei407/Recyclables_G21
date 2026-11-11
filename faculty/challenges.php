@@ -51,7 +51,7 @@ page_start('Faculty Activities','Faculty Activities',false);
             </div>
             <div class="field">
               <label for="activity-limit">Participant limit</label>
-              <input id="activity-limit" name="activity-limit" type="number" aria-describedby="activity-limit-hint" placeholder="Participant limit" form="backend-form">
+              <input id="activity-limit" name="activity-limit" type="number" min="1" max="1000000" step="1" required aria-describedby="activity-limit-hint" value="<?= value('activity-limit') ?>" form="backend-form">
               <small class="field-hint" id="activity-limit-hint">Set the maximum number of participants for this activity.</small>
             </div>
             <div class="field field-full">

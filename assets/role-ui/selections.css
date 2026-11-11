@@ -5,6 +5,7 @@
 .clay-site .selection-trigger:hover{background:#e4eadf}
 .clay-site .selection-trigger:disabled{opacity:.65;cursor:default}
 .clay-site .selection-trigger[aria-expanded=true]{border-color:#365e43;background:#e4eadf}
+.clay-site .selection-trigger[aria-expanded=true]>.selection-icon:last-child{transform:rotate(180deg)}
 .clay-site .selection-trigger[aria-invalid=true]{border-color:#9b3131}
 .clay-site .selection-value{min-width:0;overflow-wrap:anywhere}
 .clay-site .selection-icon{display:block;width:20px;height:20px;flex:0 0 20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
